@@ -203,6 +203,25 @@ def do_report(ficheiro: str, con: sqlite3.Connection):
         print(f"{energia:<8.2f} {nome:<15} {contagem}")
 
 
+def do_stats(simbolo: str, con: sqlite3.Connection):
+    """Prints statistics for the given element symbol across all analyses in the DB."""
+    cur = con.cursor()
+    cur.execute("SELECT nome FROM Elementos WHERE simbolo = ?", (simbolo,))
+    row = cur.fetchone()
+    nome = row[0]
+
+    cur.execute("""
+        SELECT COUNT(DISTINCT numeroanalise), MAX(picocontagem), MIN(picocontagem)
+        FROM Resultados
+        WHERE simbolo = ?
+    """, (simbolo,))
+    total, maximo, minimo = cur.fetchone()
+
+    print(f"{total} results with {nome}")
+    print(f"max count {maximo}")
+    print(f"min count {minimo}")
+
+
 #%%
 
 def main(db_name: str):
@@ -225,6 +244,8 @@ def main(db_name: str):
             do_analyze(words[1], con)
         elif words[0].lower() == "report" and len(words) == 2:
             do_report(words[1], con)
+        elif words[0].lower() == "stats" and len(words) == 2:
+            do_stats(words[1], con)
 
         # TODO
 
