@@ -20,13 +20,13 @@ def do_initdb(con: sqlite3.Connection):
     In this database, you create four tables and load initial values."""
     cur = con.cursor()
 
-    # Drop existing tables
+    # Apagar tabelas existentes
     cur.execute("DROP TABLE IF EXISTS Resultados")
     cur.execute("DROP TABLE IF EXISTS Analisados")
     cur.execute("DROP TABLE IF EXISTS Linhas")
     cur.execute("DROP TABLE IF EXISTS Elementos")
 
-    # Create tables
+    # Criar tabelas
     cur.execute("""
         CREATE TABLE Elementos (
             simbolo TEXT PRIMARY KEY,
@@ -57,7 +57,7 @@ def do_initdb(con: sqlite3.Connection):
         )
     """)
 
-    # Download and load elements
+    # Descarregar e carregar elementos
     with urllib.request.urlopen(URLELEMS) as resp:
         for line in resp:
             line = line.decode("utf-8").strip()
@@ -66,7 +66,7 @@ def do_initdb(con: sqlite3.Connection):
             simbolo, nome = line.split(";", 1)
             cur.execute("INSERT INTO Elementos VALUES (?, ?)", (simbolo, nome))
 
-    # Download and load x-ray emission lines
+    # Descarregar e carregar linhas de emissão de raios X
     with urllib.request.urlopen(URLXRLINES) as resp:
         for line in resp:
             line = line.decode("utf-8").strip()
@@ -74,7 +74,7 @@ def do_initdb(con: sqlite3.Connection):
                 continue
             parts = line.split(";")
             simbolo = parts[0]
-            # pairs: energy, weight, energy, weight ...
+            # pares: energia, peso, energia, peso ...
             for i in range(1, len(parts), 2):
                 energia = float(parts[i])
                 peso = float(parts[i + 1])
@@ -85,10 +85,10 @@ def do_initdb(con: sqlite3.Connection):
 
 
 def ler_espectrograma(ficheiro: str) -> list[tuple[float, float]]:
-    """Reads a spectrogram file and returns a list of (energy, count) pairs."""
+    """Lê um ficheiro de espectrograma e devolve uma lista de pares (energia, contagem)."""
     dados = []
     with open(ficheiro) as f:
-        next(f)  # skip header line
+        next(f)  # ignorar linha de cabeçalho
         for linha in f:
             linha = linha.strip()
             if not linha:
@@ -99,12 +99,12 @@ def ler_espectrograma(ficheiro: str) -> list[tuple[float, float]]:
 
 
 def detetar_picos(espectro: list[tuple[float, float]]) -> list[tuple[float, float]]:
-    """Detects peaks in the spectrogram using the advanced algorithm.
+    """Deteta os picos no espectrograma usando o algoritmo avançado.
 
-    A point (energy_i, count_i) is a peak if:
-    - count_{i-1} < count_i > count_{i+1}  (local maximum)
-    - count_i >= 5% of the strongest peak
-    - energy_i >= 0.5 keV
+    Um ponto (energia_i, contagem_i) é um pico se:
+    - contagem_{i-1} < contagem_i > contagem_{i+1}  (máximo local)
+    - contagem_i >= 5% do pico mais forte
+    - energia_i >= 0.5 keV
     """
     if not espectro:
         return []
@@ -123,7 +123,7 @@ def detetar_picos(espectro: list[tuple[float, float]]) -> list[tuple[float, floa
 
 
 def contagem_para_energia(espectro: list[tuple[float, float]], energia_alvo: float) -> float:
-    """Returns the count for the given energy, or the next higher energy if exact not found."""
+    """Devolve a contagem para a energia dada, ou a do valor imediatamente superior se não existir."""
     for energia, contagem in espectro:
         if energia >= energia_alvo:
             return contagem
@@ -144,10 +144,10 @@ def calcular_score(simbolo: str, espectro: list[tuple[float, float]], con: sqlit
 
 def identificar_elemento(pico_energia: float, espectro: list[tuple[float, float]],
                          con: sqlite3.Connection) -> Optional[str]:
-    """Finds the best matching element for a peak energy.
+    """Identifica o elemento mais provável para um pico de energia.
 
-    Returns the symbol of the element with the highest score, or None if no
-    candidate is within TOLERANCE.
+    Devolve o símbolo do elemento com maior score, ou None se nenhum
+    candidato estiver dentro da TOLERÂNCIA.
     """
     cur = con.cursor()
     cur.execute("""
@@ -164,7 +164,7 @@ def identificar_elemento(pico_energia: float, espectro: list[tuple[float, float]
 
 
 def do_analyze(ficheiro: str, con: sqlite3.Connection):
-    """Reads and analyses the spectrogram file. Saves results to the database."""
+    """Lê e analisa o ficheiro de espectrograma. Guarda os resultados na base de dados."""
     espectro = ler_espectrograma(ficheiro)
     picos = detetar_picos(espectro)
 
@@ -186,7 +186,7 @@ def do_analyze(ficheiro: str, con: sqlite3.Connection):
 
 
 def do_report(ficheiro: str, con: sqlite3.Connection):
-    """Prints a report of all analysis results for the given file."""
+    """Escreve no ecrã um relatório com todos os resultados da análise do ficheiro indicado."""
     cur = con.cursor()
     cur.execute("""
         SELECT r.picoenergia, e.nome, r.picocontagem
@@ -205,7 +205,7 @@ def do_report(ficheiro: str, con: sqlite3.Connection):
 
 
 def do_stats(simbolo: str, con: sqlite3.Connection):
-    """Prints statistics for the given element symbol across all analyses in the DB."""
+    """Apresenta estatísticas do elemento dado para todas as análises na base de dados."""
     cur = con.cursor()
     cur.execute("SELECT nome FROM Elementos WHERE simbolo = ?", (simbolo,))
     row = cur.fetchone()
@@ -224,8 +224,8 @@ def do_stats(simbolo: str, con: sqlite3.Connection):
 
 
 def do_chart(ficheiro: str, con: sqlite3.Connection):
-    """Plots the spectrogram with detected peaks and identified element names.
-    Does not save results to the database.
+    """Mostra o gráfico do espectrograma com os picos e os nomes dos elementos identificados.
+    Não guarda resultados na base de dados.
     """
     espectro = ler_espectrograma(ficheiro)
     picos = detetar_picos(espectro)
@@ -242,7 +242,7 @@ def do_chart(ficheiro: str, con: sqlite3.Connection):
     cur = con.cursor()
     for pico_energia, pico_contagem in picos:
         simbolo = identificar_elemento(pico_energia, espectro, con)
-        plt.plot(pico_energia, pico_contagem, "ko")  # black circle
+        plt.plot(pico_energia, pico_contagem, "ko")  # círculo preto
         if simbolo:
             cur.execute("SELECT nome FROM Elementos WHERE simbolo = ?", (simbolo,))
             nome = cur.fetchone()[0]
