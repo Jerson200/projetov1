@@ -6,6 +6,7 @@ numero:   nome:
 
 import sqlite3
 import urllib.request
+from typing import Optional
 
 URLELEMS = "http://asc.di.fct.unl.pt/~vad/ice/26/elements.txt"
 URLXRLINES = "http://asc.di.fct.unl.pt/~vad/ice/26/xray-lines.txt"
@@ -118,6 +119,47 @@ def detetar_picos(espectro: list[tuple[float, float]]) -> list[tuple[float, floa
         if contagem >= limiar and espectro[i-1][1] < contagem > espectro[i+1][1]:
             picos.append((energia, contagem))
     return picos
+
+
+def contagem_para_energia(espectro: list[tuple[float, float]], energia_alvo: float) -> float:
+    """Returns the count for the given energy, or the next higher energy if exact not found."""
+    for energia, contagem in espectro:
+        if energia >= energia_alvo:
+            return contagem
+    return 0.0
+
+
+def calcular_score(simbolo: str, espectro: list[tuple[float, float]], con: sqlite3.Connection) -> float:
+    cur = con.cursor()
+    cur.execute("SELECT energia, peso FROM Linhas WHERE simbolo = ?", (simbolo,))
+    linhas = cur.fetchall()
+
+    score = 0.0
+    for energia_linha, peso in linhas:
+        contagem = contagem_para_energia(espectro, energia_linha)
+        score += contagem / peso
+    return score
+
+
+def identificar_elemento(pico_energia: float, espectro: list[tuple[float, float]],
+                         con: sqlite3.Connection) -> Optional[str]:
+    """Finds the best matching element for a peak energy.
+
+    Returns the symbol of the element with the highest score, or None if no
+    candidate is within TOLERANCE.
+    """
+    cur = con.cursor()
+    cur.execute("""
+        SELECT DISTINCT simbolo FROM Linhas
+        WHERE energia BETWEEN ? AND ?
+    """, (pico_energia - TOLERANCE, pico_energia + TOLERANCE))
+    candidatos = [row[0] for row in cur.fetchall()]
+
+    if not candidatos:
+        return None
+
+    melhor = max(candidatos, key=lambda s: calcular_score(s, espectro, con))
+    return melhor
 
 
 #%%
