@@ -7,6 +7,7 @@ numero:   nome:
 import sqlite3
 import urllib.request
 from typing import Optional
+import matplotlib.pyplot as plt
 
 URLELEMS = "http://asc.di.fct.unl.pt/~vad/ice/26/elements.txt"
 URLXRLINES = "http://asc.di.fct.unl.pt/~vad/ice/26/xray-lines.txt"
@@ -222,6 +223,35 @@ def do_stats(simbolo: str, con: sqlite3.Connection):
     print(f"min count {minimo}")
 
 
+def do_chart(ficheiro: str, con: sqlite3.Connection):
+    """Plots the spectrogram with detected peaks and identified element names.
+    Does not save results to the database.
+    """
+    espectro = ler_espectrograma(ficheiro)
+    picos = detetar_picos(espectro)
+
+    energias = [e for e, _ in espectro]
+    contagens = [c for _, c in espectro]
+
+    plt.figure()
+    plt.plot(energias, contagens)
+    plt.xlabel("Energy (keV)")
+    plt.ylabel("Counts")
+    plt.title(ficheiro)
+
+    cur = con.cursor()
+    for pico_energia, pico_contagem in picos:
+        simbolo = identificar_elemento(pico_energia, espectro, con)
+        plt.plot(pico_energia, pico_contagem, "ko")  # black circle
+        if simbolo:
+            cur.execute("SELECT nome FROM Elementos WHERE simbolo = ?", (simbolo,))
+            nome = cur.fetchone()[0]
+            plt.text(pico_energia, pico_contagem, nome)
+
+    plt.tight_layout()
+    plt.show()
+
+
 #%%
 
 def main(db_name: str):
@@ -246,8 +276,8 @@ def main(db_name: str):
             do_report(words[1], con)
         elif words[0].lower() == "stats" and len(words) == 2:
             do_stats(words[1], con)
-
-        # TODO
+        elif words[0].lower() == "chart" and len(words) == 2:
+            do_chart(words[1], con)
 
         else:
             print("unknown command")
