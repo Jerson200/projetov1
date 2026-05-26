@@ -82,6 +82,44 @@ def do_initdb(con: sqlite3.Connection):
     print("Database initialized.")
 
 
+def ler_espectrograma(ficheiro: str) -> list[tuple[float, float]]:
+    """Reads a spectrogram file and returns a list of (energy, count) pairs."""
+    dados = []
+    with open(ficheiro) as f:
+        next(f)  # skip header line
+        for linha in f:
+            linha = linha.strip()
+            if not linha:
+                continue
+            energia, contagem = linha.split(",")
+            dados.append((float(energia), float(contagem)))
+    return dados
+
+
+def detetar_picos(espectro: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Detects peaks in the spectrogram using the advanced algorithm.
+
+    A point (energy_i, count_i) is a peak if:
+    - count_{i-1} < count_i > count_{i+1}  (local maximum)
+    - count_i >= 5% of the strongest peak
+    - energy_i >= 0.5 keV
+    """
+    if not espectro:
+        return []
+
+    max_contagem = max(c for _, c in espectro)
+    limiar = 0.05 * max_contagem
+
+    picos = []
+    for i in range(1, len(espectro) - 1):
+        energia, contagem = espectro[i]
+        if energia < 0.5:
+            continue
+        if contagem >= limiar and espectro[i-1][1] < contagem > espectro[i+1][1]:
+            picos.append((energia, contagem))
+    return picos
+
+
 #%%
 
 def main(db_name: str):
@@ -111,4 +149,5 @@ def main(db_name: str):
 #%%
 #   run main function
 
-main(DBNAME)
+if __name__ == "__main__":
+    main(DBNAME)
