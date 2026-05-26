@@ -1,0 +1,18 @@
+# IDE
+.idea/
+
+# Claude Code
+.claude/
+
+# Base de dados gerada pelo programa
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# macOS
+.DS_Store
