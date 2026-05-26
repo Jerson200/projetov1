@@ -162,6 +162,47 @@ def identificar_elemento(pico_energia: float, espectro: list[tuple[float, float]
     return melhor
 
 
+def do_analyze(ficheiro: str, con: sqlite3.Connection):
+    """Reads and analyses the spectrogram file. Saves results to the database."""
+    espectro = ler_espectrograma(ficheiro)
+    picos = detetar_picos(espectro)
+
+    cur = con.cursor()
+    cur.execute("INSERT INTO Analisados (ficheiro) VALUES (?)", (ficheiro,))
+    numeroanalise = cur.lastrowid
+
+    for pico_energia, pico_contagem in picos:
+        simbolo = identificar_elemento(pico_energia, espectro, con)
+        if simbolo is None:
+            continue
+        cur.execute(
+            "INSERT INTO Resultados VALUES (?, ?, ?, ?)",
+            (numeroanalise, pico_energia, pico_contagem, simbolo)
+        )
+
+    con.commit()
+    print(f"Analysed {ficheiro}.")
+
+
+def do_report(ficheiro: str, con: sqlite3.Connection):
+    """Prints a report of all analysis results for the given file."""
+    cur = con.cursor()
+    cur.execute("""
+        SELECT r.picoenergia, e.nome, r.picocontagem
+        FROM Resultados r
+        JOIN Analisados a ON r.numeroanalise = a.numeroanalise
+        JOIN Elementos e  ON r.simbolo = e.simbolo
+        WHERE a.ficheiro = ?
+        ORDER BY r.picocontagem DESC
+    """, (ficheiro,))
+    rows = cur.fetchall()
+
+    print(f"Results for file {ficheiro}:")
+    print(f"{'peak':<8} {'element':<15} {'count'}")
+    for energia, nome, contagem in rows:
+        print(f"{energia:<8.2f} {nome:<15} {contagem}")
+
+
 #%%
 
 def main(db_name: str):
@@ -180,6 +221,10 @@ def main(db_name: str):
             end = True
         elif words[0].lower() == "initdb":
             do_initdb(con)
+        elif words[0].lower() == "analyze" and len(words) == 2:
+            do_analyze(words[1], con)
+        elif words[0].lower() == "report" and len(words) == 2:
+            do_report(words[1], con)
 
         # TODO
 
